@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Layered Light Shadow</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: var(--figma-color-bg, #fff);
+        --fg: var(--figma-color-text, #1b1b1d);
+        --muted: var(--figma-color-text-secondary, #737780);
+        --border: var(--figma-color-border, #e6e7eb);
+        --surface: var(--figma-color-bg-secondary, #f5f6f8);
+        --primary: #526fe3;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          12px/1.5 Inter,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+        border-radius: 8px;
+        min-height: 31px;
+        padding: 6px 11px;
+        border: 1px solid var(--border);
+        color: var(--fg);
+        background: var(--bg);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      .top {
+        padding: 16px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+      }
+      .top strong {
+        display: block;
+        font-size: 14px;
+        letter-spacing: -0.3px;
+      }
+      .top small {
+        display: block;
+        color: var(--muted);
+        font-size: 9px;
+        letter-spacing: 1.4px;
+      }
+      .logo {
+        font-size: 23px;
+        color: var(--primary);
+      }
+      main {
+        padding: 14px 16px 100px;
+        display: grid;
+        gap: 12px;
+      }
+      .canvas {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .visual {
+        height: 124px;
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+      }
+      .preview-card {
+        width: 126px;
+        height: 64px;
+        border: 1px solid #e7eaf0;
+        background: white;
+        border-radius: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        color: #717985;
+        z-index: 1;
+      }
+      .visual-label {
+        position: absolute;
+        left: 4px;
+        top: 0;
+        font-size: 9px;
+        color: var(--muted);
+        letter-spacing: 1px;
+      }
+      .canvas-caption {
+        font-size: 10px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .status {
+        padding: 8px 11px;
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--muted);
+      }
+      .panel {
+        padding: 13px;
+        border: 1px solid var(--border);
+        border-radius: 11px;
+        display: grid;
+        gap: 12px;
+      }
+      .panel h2 {
+        margin: 0;
+        font-size: 12px;
+      }
+      .panel-heading,
+      .control-head,
+      .colorrow,
+      .toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .panel-heading > label {
+        font-weight: 700;
+        font-size: 10px;
+        letter-spacing: 1px;
+        color: var(--muted);
+      }
+      .control {
+        display: grid;
+        gap: 3px;
+      }
+      .control-head output {
+        font-size: 11px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      input[type="range"] {
+        accent-color: var(--primary);
+        width: 100%;
+        margin: 0;
+        height: 20px;
+      }
+      input[type="color"] {
+        padding: 2px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        width: 38px;
+        height: 28px;
+        background: transparent;
+      }
+      input[type="checkbox"] {
+        accent-color: var(--primary);
+        cursor: pointer;
+      }
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--fg);
+        border-radius: 7px;
+        padding: 8px;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 60px;
+        font: 10px/1.5 monospace;
+      }
+      .plain {
+        border: 0;
+        background: transparent;
+        padding: 0;
+        min-height: 22px;
+        color: var(--primary);
+      }
+      .warn {
+        color: #cc5656 !important;
+      }
+      .mini {
+        text-align: right;
+      }
+      details.panel {
+        display: block;
+      }
+      details summary {
+        cursor: pointer;
+        font-weight: 600;
+        list-style: none;
+        display: flex;
+        justify-content: space-between;
+      }
+      details summary::-webkit-details-marker {
+        display: none;
+      }
+      .advanced-body {
+        display: grid;
+        gap: 12px;
+        padding-top: 15px;
+      }
+      .advanced-body > small,
+      .compact > small {
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      .primary {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+        font-weight: 600;
+      }
+      .secondary {
+        background: var(--surface);
+      }
+      .danger {
+        background: #b73a45;
+        color: white;
+        border-color: #b73a45;
+      }
+      .small {
+        justify-self: end;
+        font-size: 11px;
+      }
+      .footmeta {
+        color: var(--muted);
+        font-size: 10px;
+        margin-bottom: 8px;
+      }
+      .footactions {
+        display: flex;
+        gap: 7px;
+      }
+      .footactions button {
+        flex: 1;
+        white-space: nowrap;
+        font-size: 11px;
+      }
+      footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        border-top: 1px solid var(--border);
+        padding: 10px 15px 12px;
+        box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.025);
+      }
+      #error {
+        color: #b33238;
+        background: #fff2f1;
+        border: 1px solid #f1c5c5;
+        padding: 10px;
+        border-radius: 8px;
+      }
+      .dialog-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        z-index: 10;
+      }
+      .dialog-backdrop[hidden],
+      #error[hidden],
+      #customDelete[hidden] {
+        display: none;
+      }
+      .dialog {
+        background: var(--bg);
+        color: var(--fg);
+        border-radius: 13px;
+        padding: 20px;
+        width: 100%;
+        box-shadow: 0 10px 42px #0003;
+      }
+      .dialog h2 {
+        margin: 0;
+        font-size: 15px;
+      }
+      .dialog p {
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .dialog .footactions {
+        margin-top: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <strong>Layered Light Shadow</strong><small>PROFESSIONAL · v2.0</small>
+      </div>
+      <span class="logo">◈</span>
+    </header>
+    <main>
+      <section class="canvas">
+        <div class="visual" id="visual">
+          <span class="visual-label">LIVE SHADOW PREVIEW</span>
+        </div>
+        <div class="canvas-caption">
+          Illustrative browser preview · Figma canvas is authoritative
+        </div>
+      </section>
+      <div id="status" role="status" class="status">
+        Select layers in Figma to begin.
+      </div>
+      <section class="panel">
+        <div class="panel-heading">
+          <label for="preset">PRESET</label
+          ><button
+            class="plain"
+            id="savePreset"
+            title="Save settings as a preset"
+          >
+            + Save
+          </button>
+        </div>
+        <select id="preset">
+          <option value="">Custom settings</option>
+        </select>
+        <div id="customDelete" class="mini" hidden>
+          <button class="plain warn" id="deletePreset">
+            Delete selected custom preset
+          </button>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Shadow properties</h2>
+          <button class="plain" id="reset">Reset</button>
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="depth">Depth</label
+            ><output id="depthValue">24 px</output>
+          </div>
+          <input id="depth" type="range" min="0" max="200" value="24" />
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="softness">Softness</label
+            ><output id="softnessValue">32 px</output>
+          </div>
+          <input id="softness" type="range" min="0" max="200" value="32" />
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="layers">Layers</label
+            ><output id="layersValue">6</output>
+          </div>
+          <input id="layers" type="range" min="2" max="16" value="6" />
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="opacity">Opacity</label
+            ><output id="opacityValue">28%</output>
+          </div>
+          <input id="opacity" type="range" min="0" max="100" value="28" />
+        </div>
+        <div class="colorrow">
+          <label for="color">Shadow color</label
+          ><input id="color" type="color" value="#0a0d14" />
+        </div>
+      </section>
+      <details class="panel" id="advanced">
+        <summary>Advanced controls <span>↗</span></summary>
+        <div class="advanced-body">
+          <div class="control">
+            <div class="control-head">
+              <label for="lightX">Light X</label
+              ><output id="lightXValue">15%</output>
+            </div>
+            <input id="lightX" type="range" min="-100" max="100" value="15" />
+          </div>
+          <div class="control">
+            <div class="control-head">
+              <label for="lightY">Light Y</label
+              ><output id="lightYValue">-20%</output>
+            </div>
+            <input id="lightY" type="range" min="-100" max="100" value="-20" />
+          </div>
+          <div class="control">
+            <div class="control-head">
+              <label for="spread">Spread</label
+              ><output id="spreadValue">0 px</output>
+            </div>
+            <input id="spread" type="range" min="-50" max="50" value="0" />
+          </div>
+          <label for="curve">Layer distribution</label
+          ><select id="curve">
+            <option value="legacy">Legacy (original)</option>
+            <option value="linear">Linear</option>
+            <option value="ease-in">Ease in</option>
+            <option value="ease-out">Ease out</option>
+            <option value="exponential">Exponential</option>
+          </select>
+          <small
+            >Spread automatically falls back to 0 on unsupported layer
+            types.</small
+          >
+        </div>
+      </details>
+      <section class="panel compact">
+        <div class="toggle-row">
+          <label for="live">Live preview on Figma canvas</label
+          ><input id="live" type="checkbox" />
+        </div>
+        <small
+          >Preview modifies selected layers temporarily. Cancel restores the
+          previous shadows when no other edits intervene.</small
+        >
+      </section>
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>CSS export</h2>
+          <button class="plain" id="export">Generate</button>
+        </div>
+        <textarea id="css" readonly rows="3" aria-label="Generated CSS">
+Click Generate to export shadow CSS.</textarea
+        ><button id="copy" class="secondary small">Copy CSS</button>
+      </section>
+      <div id="error" role="alert" hidden></div>
+    </main>
+    <footer>
+      <div class="footmeta" id="selection">No selection</div>
+      <div class="footactions">
+        <button id="cancel" class="secondary">Cancel preview</button
+        ><button id="remove" class="secondary warn">Remove</button
+        ><button id="apply" class="primary">Apply shadow</button>
+      </div>
+    </footer>
+    <div id="conflictDialog" class="dialog-backdrop" hidden>
+      <div
+        class="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="conflictTitle"
+      >
+        <h2 id="conflictTitle">Effects changed outside plugin</h2>
+        <p id="conflictText">
+          Some layers have manually edited effects. Continuing may discard
+          changes.
+        </p>
+        <div class="footactions">
+          <button id="conflictCancel" class="secondary">Keep current</button
+          ><button id="conflictForce" class="danger">
+            Restore and continue
+          </button>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        "use strict";
+        const modules = [
+          function (module, exports, __req) {
+            "use strict";
+            Object.defineProperty(exports, "__esModule", { value: true });
+            const validation_1 = __req(1);
+            const defaults_1 = __req(2);
+            const store_1 = __req(3);
+            const preview_1 = __req(4);
+            const byId = (id) => document.getElementById(id);
+            const send = (msg) =>
+              parent.postMessage({ pluginMessage: msg }, "*");
+            const nums = [
+              "depth",
+              "softness",
+              "layers",
+              "opacity",
+              "spread",
+              "lightX",
+              "lightY",
+            ];
+            const hex = (color) =>
+              "#" +
+              [color.r, color.g, color.b]
+                .map((c) =>
+                  Math.round(c * 255)
+                    .toString(16)
+                    .padStart(2, "0"),
+                )
+                .join("");
+            const fromHex = (value) => {
+              const n = parseInt(value.slice(1), 16);
+              return {
+                r: ((n >> 16) & 255) / 255,
+                g: ((n >> 8) & 255) / 255,
+                b: (n & 255) / 255,
+                a: 1,
+              };
+            };
+            function controlsFromState() {
+              const p = store_1.state.params;
+              for (const k of nums) {
+                const value =
+                  k === "lightX"
+                    ? p.light.x
+                    : k === "lightY"
+                      ? p.light.y
+                      : p[k];
+                byId(k).value = String(value);
+                byId(k + "Value").textContent =
+                  String(value) +
+                  (k === "opacity" || k.startsWith("light")
+                    ? "%"
+                    : k === "layers"
+                      ? ""
+                      : " px");
+              }
+              byId("color").value = hex(p.color);
+              byId("curve").value = p.curve;
+              (0, preview_1.renderPreview)(byId("visual"), p);
+            }
+            function readControls() {
+              store_1.state.params = (0, validation_1.normalizeParams)({
+                ...store_1.state.params,
+                depth: Number(byId("depth").value),
+                softness: Number(byId("softness").value),
+                layers: Number(byId("layers").value),
+                opacity: Number(byId("opacity").value),
+                spread: Number(byId("spread").value),
+                light: {
+                  x: Number(byId("lightX").value),
+                  y: Number(byId("lightY").value),
+                },
+                color: fromHex(byId("color").value),
+                curve: byId("curve").value,
+              });
+              store_1.state.currentPreset = "";
+              byId("preset").value = "";
+              controlsFromState();
+              schedulePreview();
+            }
+            let debounce;
+            function schedulePreview() {
+              if (!byId("live").checked) return;
+              clearTimeout(debounce);
+              debounce = window.setTimeout(
+                () => send({ type: "preview", params: store_1.state.params }),
+                130,
+              );
+            }
+            function setStatus() {
+              const s = store_1.state.selection;
+              byId("selection").textContent = s.total
+                ? `${s.name} • ${s.eligible} eligible, ${s.bound} managed`
+                : "No selection";
+              byId("status").textContent = s.total
+                ? `${s.eligible} of ${s.total} selected layer(s) support effects.${s.conflicted ? " Conflicts detected: " + s.conflicted + "." : ""}`
+                : "Select one or more layers in Figma.";
+              for (const id of ["apply", "remove", "live"])
+                byId(id).disabled = !s.eligible;
+              byId("remove").disabled = !s.bound;
+              byId("cancel").disabled = !store_1.state.previewing;
+            }
+            function updatePresetList() {
+              const el = byId("preset");
+              const value = store_1.state.currentPreset;
+              el.replaceChildren(new Option("Custom settings", ""));
+              for (const p of store_1.state.presets)
+                el.add(
+                  new Option(
+                    `${p.category === "custom" ? "★ " : ""}${p.name}`,
+                    p.id,
+                  ),
+                );
+              el.value = value;
+              byId("customDelete").hidden = !store_1.state.presets.some(
+                (p) => p.id === value && p.category === "custom",
+              );
+            }
+            for (const id of nums) {
+              byId(id).addEventListener("input", readControls);
+            }
+            byId("curve").addEventListener("change", readControls);
+            byId("color").addEventListener("input", readControls);
+            byId("live").addEventListener("change", () => {
+              if (byId("live").checked) schedulePreview();
+              else send({ type: "cancel-preview" });
+            });
+            byId("preset").addEventListener("change", () => {
+              const id = byId("preset").value;
+              const preset = store_1.state.presets.find((p) => p.id === id);
+              if (!preset) return;
+              store_1.state.currentPreset = id;
+              store_1.state.params = (0, validation_1.normalizeParams)(
+                preset.params,
+              );
+              controlsFromState();
+              schedulePreview();
+              updatePresetList();
+            });
+            byId("reset").addEventListener("click", () => {
+              store_1.state.params = (0, validation_1.normalizeParams)(
+                defaults_1.DEFAULTS,
+              );
+              store_1.state.currentPreset = "";
+              controlsFromState();
+              updatePresetList();
+              schedulePreview();
+            });
+            byId("apply").addEventListener("click", () =>
+              send({ type: "apply", params: store_1.state.params }),
+            );
+            byId("remove").addEventListener("click", () =>
+              send({ type: "remove" }),
+            );
+            byId("cancel").addEventListener("click", () => {
+              clearTimeout(debounce);
+              send({ type: "cancel-preview" });
+            });
+            byId("export").addEventListener("click", () =>
+              send({ type: "export-css", params: store_1.state.params }),
+            );
+            byId("copy").addEventListener("click", async () => {
+              const text = byId("css").value;
+              try {
+                await navigator.clipboard.writeText(text);
+                byId("status").textContent = "CSS copied to clipboard.";
+              } catch {
+                byId("css").select();
+                document.execCommand("copy");
+              }
+            });
+            byId("savePreset").addEventListener("click", () => {
+              const name = prompt(
+                "Name your preset (max 60 characters):",
+              )?.trim();
+              if (name)
+                send({
+                  type: "save-preset",
+                  name,
+                  params: store_1.state.params,
+                });
+            });
+            byId("deletePreset").addEventListener("click", () => {
+              if (store_1.state.currentPreset)
+                send({
+                  type: "delete-preset",
+                  id: store_1.state.currentPreset,
+                });
+              store_1.state.currentPreset = "";
+            });
+            byId("conflictCancel").addEventListener("click", () => {
+              byId("conflictDialog").hidden = true;
+              store_1.state.pendingConflict = null;
+            });
+            byId("conflictForce").addEventListener("click", () => {
+              if (store_1.state.pendingConflict)
+                send(
+                  store_1.state.pendingConflict === "apply"
+                    ? {
+                        type: "apply",
+                        params: store_1.state.params,
+                        force: true,
+                      }
+                    : { type: "remove", force: true },
+                );
+              byId("conflictDialog").hidden = true;
+              store_1.state.pendingConflict = null;
+            });
+            window.addEventListener("message", (event) => {
+              const msg = event.data?.pluginMessage;
+              if (!msg) return;
+              if (msg.type === "state") {
+                const wasSelection = store_1.state.selection.key;
+                const newSelection = msg.selection.key;
+                store_1.state.selection = msg.selection;
+                store_1.state.presets = msg.presets;
+                store_1.state.previewing = msg.previewing;
+                if (wasSelection !== newSelection) {
+                  store_1.state.params = (0, validation_1.normalizeParams)(
+                    msg.params,
+                  );
+                  store_1.state.currentPreset = "";
+                  controlsFromState();
+                }
+                updatePresetList();
+                setStatus();
+                return;
+              }
+              if (msg.type === "result") {
+                const r = msg.result;
+                byId("status").textContent =
+                  `${msg.action}: ${r.applied} succeeded, ${r.conflicted} conflicts, ${r.failed} errors, ${r.skipped} skipped.`;
+                return;
+              }
+              if (msg.type === "conflict") {
+                store_1.state.pendingConflict = msg.action;
+                byId("conflictText").textContent =
+                  `${msg.count} layer(s) have changed effects. Forcing this operation will restore the stored baseline and can discard manual effects edits.`;
+                byId("conflictDialog").hidden = false;
+                return;
+              }
+              if (msg.type === "css") {
+                byId("css").value = msg.css;
+                return;
+              }
+              if (msg.type === "error") {
+                byId("error").textContent = msg.message;
+                byId("error").hidden = false;
+                return;
+              }
+              if (msg.type === "notification") {
+                byId("status").textContent = msg.message;
+              }
+            });
+            controlsFromState();
+            setStatus();
+          },
+          function (module, exports, __req) {
+            "use strict";
+            Object.defineProperty(exports, "__esModule", { value: true });
+            exports.color =
+              exports.asRecord =
+              exports.point =
+              exports.clamp =
+              exports.finite =
+                void 0;
+            exports.normalizeParams = normalizeParams;
+            exports.isLegacyParams = isLegacyParams;
+            const defaults_1 = __req(2);
+            const finite = (v, fallback) =>
+              typeof v === "number" && Number.isFinite(v) ? v : fallback;
+            exports.finite = finite;
+            const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+            exports.clamp = clamp;
+            const point = (raw, fallback) => {
+              const v = (0, exports.asRecord)(raw);
+              return {
+                x: (0, exports.clamp)(
+                  (0, exports.finite)(v.x, fallback.x),
+                  -200,
+                  200,
+                ),
+                y: (0, exports.clamp)(
+                  (0, exports.finite)(v.y, fallback.y),
+                  -200,
+                  200,
+                ),
+              };
+            };
+            exports.point = point;
+            const asRecord = (raw) =>
+              raw !== null && typeof raw === "object" && !Array.isArray(raw)
+                ? raw
+                : {};
+            exports.asRecord = asRecord;
+            const color = (raw, fallback) => {
+              const v = (0, exports.asRecord)(raw);
+              return {
+                r: (0, exports.clamp)(
+                  (0, exports.finite)(v.r, fallback.r),
+                  0,
+                  1,
+                ),
+                g: (0, exports.clamp)(
+                  (0, exports.finite)(v.g, fallback.g),
+                  0,
+                  1,
+                ),
+                b: (0, exports.clamp)(
+                  (0, exports.finite)(v.b, fallback.b),
+                  0,
+                  1,
+                ),
+                a: (0, exports.clamp)(
+                  (0, exports.finite)(v.a, fallback.a),
+                  0,
+                  1,
+                ),
+              };
+            };
+            exports.color = color;
+            const curves = [
+              "legacy",
+              "linear",
+              "ease-in",
+              "ease-out",
+              "exponential",
+            ];
+            function normalizeParams(raw, defaults = defaults_1.DEFAULTS) {
+              const v = (0, exports.asRecord)(raw);
+              return {
+                depth: (0, exports.clamp)(
+                  (0, exports.finite)(v.depth, defaults.depth),
+                  0,
+                  200,
+                ),
+                softness: (0, exports.clamp)(
+                  (0, exports.finite)(v.softness, defaults.softness),
+                  0,
+                  200,
+                ),
+                layers: Math.round(
+                  (0, exports.clamp)(
+                    (0, exports.finite)(v.layers, defaults.layers),
+                    2,
+                    16,
+                  ),
+                ),
+                opacity: (0, exports.clamp)(
+                  (0, exports.finite)(v.opacity, defaults.opacity),
+                  0,
+                  100,
+                ),
+                color: (0, exports.color)(v.color, defaults.color),
+                light: (0, exports.point)(v.light, defaults.light),
+                spread: (0, exports.clamp)(
+                  (0, exports.finite)(v.spread, defaults.spread),
+                  -50,
+                  50,
+                ),
+                curve:
+                  typeof v.curve === "string" && curves.includes(v.curve)
+                    ? v.curve
+                    : defaults.curve,
+              };
+            }
+            function isLegacyParams(raw) {
+              const v = (0, exports.asRecord)(raw);
+              return (
+                ["depth", "softness", "layers", "opacity"].every(
+                  (k) => typeof v[k] === "number" && Number.isFinite(v[k]),
+                ) &&
+                Object.keys((0, exports.asRecord)(v.color)).length >= 4 &&
+                Object.keys((0, exports.asRecord)(v.light)).length >= 2
+              );
+            }
+          },
+          function (module, exports, __req) {
+            "use strict";
+            Object.defineProperty(exports, "__esModule", { value: true });
+            exports.DEFAULTS = exports.ATTACH_KEY = exports.TOOL_ID = void 0;
+            exports.TOOL_ID = "36604c2e-ece2-495a-a2e0-9b0706ab9301";
+            exports.ATTACH_KEY = exports.TOOL_ID + ":state";
+            exports.DEFAULTS = {
+              depth: 24,
+              softness: 32,
+              layers: 6,
+              opacity: 28,
+              color: { r: 0.04, g: 0.05, b: 0.08, a: 1 },
+              light: { x: 15, y: -20 },
+              spread: 0,
+              curve: "legacy",
+            };
+          },
+          function (module, exports, __req) {
+            "use strict";
+            Object.defineProperty(exports, "__esModule", { value: true });
+            exports.state = void 0;
+            const defaults_1 = __req(2);
+            exports.state = {
+              params: defaults_1.DEFAULTS,
+              selection: {
+                key: "",
+                total: 0,
+                eligible: 0,
+                bound: 0,
+                conflicted: 0,
+                unsupported: 0,
+                name: "No selection",
+              },
+              presets: [],
+              previewing: false,
+              currentPreset: "",
+              pendingConflict: null,
+            };
+          },
+          function (module, exports, __req) {
+            "use strict";
+            Object.defineProperty(exports, "__esModule", { value: true });
+            exports.renderPreview = renderPreview;
+            const shadow_engine_1 = __req(5);
+            const css_export_1 = __req(7);
+            function renderPreview(el, params) {
+              let card = el.querySelector(".preview-card");
+              if (!card) {
+                card = document.createElement("div");
+                card.className = "preview-card";
+                card.textContent = "Shadow preview";
+                el.appendChild(card);
+              }
+              const effects = (0, shadow_engine_1.generateShadowStack)(params, {
+                width: 126,
+                height: 64,
+              });
+              card.style.boxShadow = (0, css_export_1.shadowToCss)(effects)
+                .replace(/^box-shadow:\s*/, "")
+                .replace(/;\s*$/, "");
+            }
+          },
+          function (module, exports, __req) {
+            "use strict";
+            Object.defineProperty(exports, "__esModule", { value: true });
+            exports.generateShadowStack = generateShadowStack;
+            const validation_1 = __req(1);
+            const shadow_distribution_1 = __req(6);
+            function generateShadowStack(raw, geometry) {
+              const p = (0, validation_1.normalizeParams)(raw);
+              const scale = Math.max(
+                1,
+                Math.min(geometry.width, geometry.height),
+              );
+              const dx =
+                ((50 - p.light.x) / 100) * (geometry.width / scale) * p.depth;
+              const dy =
+                ((50 - p.light.y) / 100) * (geometry.height / scale) * p.depth;
+              const alpha = Math.min(0.99, (p.opacity / 100) * p.color.a),
+                w = (0, shadow_distribution_1.weights)(p.layers);
+              return w.map((weight, i) => {
+                const q = (0, shadow_distribution_1.progression)(
+                  (i + 1) / p.layers,
+                  p.curve,
+                );
+                return {
+                  type: "DROP_SHADOW",
+                  color: {
+                    r: p.color.r,
+                    g: p.color.g,
+                    b: p.color.b,
+                    a: 1 - Math.pow(1 - alpha, weight),
+                  },
+                  offset: { x: dx * q, y: dy * q },
+                  radius: p.softness * q,
+                  spread: p.spread * q,
+                  visible: true,
+                  blendMode: "NORMAL",
+                };
+              });
+            }
+          },
+          function (module, exports, __req) {
+            "use strict";
+            Object.defineProperty(exports, "__esModule", { value: true });
+            exports.progression = progression;
+            exports.weights = weights;
+            function progression(t, curve) {
+              switch (curve) {
+                case "linear":
+                  return t;
+                case "ease-out":
+                  return Math.sqrt(t);
+                case "exponential":
+                  return (Math.exp(3 * t) - 1) / (Math.exp(3) - 1);
+                case "ease-in":
+                case "legacy":
+                default:
+                  return t * t;
+              }
+            }
+            function weights(count) {
+              const raw = Array.from(
+                { length: count },
+                (_, i) => 1 / Math.sqrt(i + 1),
+              );
+              const sum = raw.reduce((a, b) => a + b, 0);
+              return raw.map((v) => v / sum);
+            }
+          },
+          function (module, exports, __req) {
+            "use strict";
+            Object.defineProperty(exports, "__esModule", { value: true });
+            exports.shadowToCss = shadowToCss;
+            const n = (value) => Number(value.toFixed(3)).toString();
+            const channel = (v) =>
+              Math.round(Math.max(0, Math.min(1, v)) * 255);
+            function shadowToCss(shadows) {
+              if (!shadows.length) return "box-shadow: none;";
+              return (
+                "box-shadow:\n  " +
+                shadows
+                  .map(
+                    (s) =>
+                      `${n(s.offset.x)}px ${n(s.offset.y)}px ${n(s.radius)}px ${n(s.spread ?? 0)}px rgba(${channel(s.color.r)}, ${channel(s.color.g)}, ${channel(s.color.b)}, ${n(s.color.a)})`,
+                  )
+                  .join(",\n  ") +
+                ";"
+              );
+            }
+          },
+        ];
+        const cache = {};
+        function __req(id) {
+          if (cache[id]) return cache[id].exports;
+          const mod = { exports: {} };
+          cache[id] = mod;
+          modules[id](mod, mod.exports, __req);
+          return mod.exports;
+        }
+        __req(0);
+      })();
+    </script>
+  </body>
+</html>

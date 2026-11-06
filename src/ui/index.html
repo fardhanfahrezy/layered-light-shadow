@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Layered Light Shadow</title>
+    <style>
+      /*__STYLE__*/
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <strong>Layered Light Shadow</strong><small>PROFESSIONAL · v2.0</small>
+      </div>
+      <span class="logo">◈</span>
+    </header>
+    <main>
+      <section class="canvas">
+        <div class="visual" id="visual">
+          <span class="visual-label">LIVE SHADOW PREVIEW</span>
+        </div>
+        <div class="canvas-caption">
+          Illustrative browser preview · Figma canvas is authoritative
+        </div>
+      </section>
+      <div id="status" role="status" class="status">
+        Select layers in Figma to begin.
+      </div>
+      <section class="panel">
+        <div class="panel-heading">
+          <label for="preset">PRESET</label
+          ><button
+            class="plain"
+            id="savePreset"
+            title="Save settings as a preset"
+          >
+            + Save
+          </button>
+        </div>
+        <select id="preset">
+          <option value="">Custom settings</option>
+        </select>
+        <div id="customDelete" class="mini" hidden>
+          <button class="plain warn" id="deletePreset">
+            Delete selected custom preset
+          </button>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Shadow properties</h2>
+          <button class="plain" id="reset">Reset</button>
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="depth">Depth</label
+            ><output id="depthValue">24 px</output>
+          </div>
+          <input id="depth" type="range" min="0" max="200" value="24" />
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="softness">Softness</label
+            ><output id="softnessValue">32 px</output>
+          </div>
+          <input id="softness" type="range" min="0" max="200" value="32" />
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="layers">Layers</label
+            ><output id="layersValue">6</output>
+          </div>
+          <input id="layers" type="range" min="2" max="16" value="6" />
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="opacity">Opacity</label
+            ><output id="opacityValue">28%</output>
+          </div>
+          <input id="opacity" type="range" min="0" max="100" value="28" />
+        </div>
+        <div class="colorrow">
+          <label for="color">Shadow color</label
+          ><input id="color" type="color" value="#0a0d14" />
+        </div>
+      </section>
+      <details class="panel" id="advanced">
+        <summary>Advanced controls <span>↗</span></summary>
+        <div class="advanced-body">
+          <div class="control">
+            <div class="control-head">
+              <label for="lightX">Light X</label
+              ><output id="lightXValue">15%</output>
+            </div>
+            <input id="lightX" type="range" min="-100" max="100" value="15" />
+          </div>
+          <div class="control">
+            <div class="control-head">
+              <label for="lightY">Light Y</label
+              ><output id="lightYValue">-20%</output>
+            </div>
+            <input id="lightY" type="range" min="-100" max="100" value="-20" />
+          </div>
+          <div class="control">
+            <div class="control-head">
+              <label for="spread">Spread</label
+              ><output id="spreadValue">0 px</output>
+            </div>
+            <input id="spread" type="range" min="-50" max="50" value="0" />
+          </div>
+          <label for="curve">Layer distribution</label
+          ><select id="curve">
+            <option value="legacy">Legacy (original)</option>
+            <option value="linear">Linear</option>
+            <option value="ease-in">Ease in</option>
+            <option value="ease-out">Ease out</option>
+            <option value="exponential">Exponential</option>
+          </select>
+          <small
+            >Spread automatically falls back to 0 on unsupported layer
+            types.</small
+          >
+        </div>
+      </details>
+      <section class="panel compact">
+        <div class="toggle-row">
+          <label for="live">Live preview on Figma canvas</label
+          ><input id="live" type="checkbox" />
+        </div>
+        <small
+          >Preview modifies selected layers temporarily. Cancel restores the
+          previous shadows when no other edits intervene.</small
+        >
+      </section>
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>CSS export</h2>
+          <button class="plain" id="export">Generate</button>
+        </div>
+        <textarea id="css" readonly rows="3" aria-label="Generated CSS">
+Click Generate to export shadow CSS.</textarea
+        ><button id="copy" class="secondary small">Copy CSS</button>
+      </section>
+      <div id="error" role="alert" hidden></div>
+    </main>
+    <footer>
+      <div class="footmeta" id="selection">No selection</div>
+      <div class="footactions">
+        <button id="cancel" class="secondary">Cancel preview</button
+        ><button id="remove" class="secondary warn">Remove</button
+        ><button id="apply" class="primary">Apply shadow</button>
+      </div>
+    </footer>
+    <div id="conflictDialog" class="dialog-backdrop" hidden>
+      <div
+        class="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="conflictTitle"
+      >
+        <h2 id="conflictTitle">Effects changed outside plugin</h2>
+        <p id="conflictText">
+          Some layers have manually edited effects. Continuing may discard
+          changes.
+        </p>
+        <div class="footactions">
+          <button id="conflictCancel" class="secondary">Keep current</button
+          ><button id="conflictForce" class="danger">
+            Restore and continue
+          </button>
+        </div>
+      </div>
+    </div>
+    <script>
+      /*__SCRIPT__*/
+    </script>
+  </body>
+</html>

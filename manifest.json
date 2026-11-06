@@ -1,0 +1,16 @@
+{
+  "name": "Layered light shadow",
+  "id": "36604c2e-ece2-495a-a2e0-9b0706ab9301",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "documentAccess": "dynamic-page",
+  "editorType": ["figma"],
+  "isTool": true,
+  "relaunchButtons": [
+    {
+      "command": "36604c2e-ece2-495a-a2e0-9b0706ab9301",
+      "name": "Layered light shadow"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "layered-light-shadow",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Non-destructive layered shadow tooling for Figma",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src tests",
+    "check": "npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "eslint": "^9.39.1",
+    "typescript-eslint": "^8.46.0",
+    "prettier": "^3.6.2"
+  }
+}
