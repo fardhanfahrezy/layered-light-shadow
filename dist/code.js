@@ -213,30 +213,82 @@
   }
 
   // src/infrastructure/attachment-migration.ts
+  var MAX_ATTACHMENT_BYTES = 9e4;
+  var CURVES = ["legacy", "linear", "ease-in", "ease-out", "exponential"];
+  var isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+  var isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(value);
+  var isSerializedEffect = (value) => {
+    if (!isRecord(value)) return false;
+    const entry = value;
+    if (typeof entry.type !== "string") return false;
+    if ("visible" in entry && typeof entry.visible !== "boolean") return false;
+    if ("blendMode" in entry && typeof entry.blendMode !== "string") return false;
+    if ("radius" in entry && !isFiniteNumber(entry.radius)) return false;
+    if ("spread" in entry && !isFiniteNumber(entry.spread)) return false;
+    if ("opacity" in entry && !isFiniteNumber(entry.opacity)) return false;
+    if ("x" in entry && !isFiniteNumber(entry.x)) return false;
+    if ("y" in entry && !isFiniteNumber(entry.y)) return false;
+    if ("offset" in entry) {
+      const offset = entry.offset;
+      if (!isRecord(offset)) return false;
+      if (!isFiniteNumber(offset.x)) return false;
+      if (!isFiniteNumber(offset.y)) return false;
+    }
+    if ("color" in entry && !isRecord(entry.color)) return false;
+    return true;
+  };
+  var isSerializedEffectsArray = (value) => Array.isArray(value) && value.length <= 64 && value.every(isSerializedEffect);
+  var isShadowParams = (value) => {
+    if (!isRecord(value)) return false;
+    const p = value;
+    if (!isFiniteNumber(p.depth) || !isFiniteNumber(p.softness)) return false;
+    if (!isFiniteNumber(p.layers) || !isFiniteNumber(p.opacity)) return false;
+    if (!isFiniteNumber(p.spread) || typeof p.curve !== "string") return false;
+    if (!CURVES.includes(p.curve)) return false;
+    if (!isRecord(p.color)) return false;
+    const color2 = p.color;
+    if (!["r", "g", "b", "a"].every((key) => isFiniteNumber(color2[key]))) {
+      return false;
+    }
+    if (!isRecord(p.light)) return false;
+    const light = p.light;
+    return isFiniteNumber(light.x) && isFiniteNumber(light.y);
+  };
   function parseAttachment(raw, current, geometry) {
     if (!raw) return { attachment: null, status: "empty" };
     try {
       const data = JSON.parse(raw);
-      if (data?.version === 2 && Array.isArray(data.baselineEffects) && Array.isArray(data.generatedEffects) && typeof data.appliedFingerprint === "string" && data.params) {
+      if (typeof data !== "object" || data === null) {
+        return { attachment: null, status: "corrupt" };
+      }
+      if (data.version === 2) {
+        const rawBudget = JSON.stringify(data).length;
+        if (rawBudget > MAX_ATTACHMENT_BYTES || !isShadowParams(data.params) || !isSerializedEffectsArray(data.baselineEffects) || !isSerializedEffectsArray(data.generatedEffects) || typeof data.appliedFingerprint !== "string" || typeof data.updatedAt !== "number") {
+          return { attachment: null, status: "corrupt" };
+        }
         const attachment = {
           version: 2,
           params: normalizeParams(data.params),
           baselineEffects: snapshot(data.baselineEffects),
           generatedEffects: snapshot(data.generatedEffects),
           appliedFingerprint: data.appliedFingerprint,
-          updatedAt: Number(data.updatedAt) || 0
+          updatedAt: data.updatedAt
         };
+        if (attachment.appliedFingerprint !== fingerprint([...attachment.baselineEffects, ...attachment.generatedEffects])) {
+          return { attachment: null, status: "corrupt" };
+        }
         return { attachment, status: "valid" };
       }
-      if (data?.version === 1 && isLegacyParams(data.params) && Array.isArray(data.state?.originalEffects)) {
+      if (data.version === 1 && isLegacyParams(data.params) && isRecord(data.state) && isSerializedEffectsArray(data.state.originalEffects)) {
         const params = normalizeParams(data.params);
-        const baseline = snapshot(
-          data.state.originalEffects
-        );
+        const baseline = snapshot(data.state.originalEffects);
         const predicted = generateShadowStack(
           params,
           geometry
         );
+        if (!Array.isArray(predicted) || !predicted.every(isSerializedEffect)) {
+          return { attachment: null, status: "corrupt" };
+        }
         const isMatch = canonical(current) === canonical([...baseline, ...predicted]);
         if (!isMatch) return { attachment: null, status: "corrupt" };
         return {
@@ -324,7 +376,9 @@
 
   // src/application/selection-service.ts
   function selectedTargets() {
-    return figma.currentPage.selection.filter((s) => !s.removed && supportsEffects(s));
+    return figma.currentPage.selection.filter(
+      (s) => !s.removed && supportsEffects(s)
+    );
   }
   function summarizeSelection() {
     const nodes = [...figma.currentPage.selection];
@@ -338,13 +392,29 @@
       }
       if (record.attachment) {
         bound++;
-        if (reconcile(readEffects(n2), record.attachment) === "conflict") conflicted++;
+        if (reconcile(readEffects(n2), record.attachment) === "conflict")
+          conflicted++;
       }
     }
-    return { key: nodes.map((n2) => n2.id).sort().join("|"), total: nodes.length, eligible: nodes.filter(supportsEffects).length, bound, conflicted, unsupported: nodes.length - nodes.filter(supportsEffects).length, name: nodes.length === 1 ? nodes[0].name : `${nodes.length} layers` };
+    return {
+      key: nodes.map((n2) => n2.id).sort().join("|"),
+      total: nodes.length,
+      eligible: nodes.filter(supportsEffects).length,
+      bound,
+      conflicted,
+      unsupported: nodes.length - nodes.filter(supportsEffects).length,
+      name: nodes.length === 1 ? nodes[0].name : `${nodes.length} layers`
+    };
   }
 
   // src/application/batch-service.ts
+  function restoreNodeState(node, originalEffects, originalState) {
+    if ("effects" in node) node.effects = originalEffects;
+    node.setPluginData(
+      "36604c2e-ece2-495a-a2e0-9b0706ab9301:state",
+      originalState
+    );
+  }
   async function runBatch(action, params, force = false) {
     const targets = selectedTargets();
     const result = {
@@ -378,7 +448,11 @@
             result.skipped++;
             continue;
           }
-          assignEffects(node, old.baselineEffects);
+          if (state === "conflict" && force) {
+            assignEffects(node, old.baselineEffects);
+          } else {
+            assignEffects(node, old.baselineEffects);
+          }
           clearNodeAttachment(node);
           node.setRelaunchData({});
           result.applied++;
@@ -408,11 +482,7 @@
             "36604c2e-ece2-495a-a2e0-9b0706ab9301": "Layered Light Shadow"
           });
         } catch (err) {
-          assignEffects(node, before);
-          node.setPluginData(
-            "36604c2e-ece2-495a-a2e0-9b0706ab9301:state",
-            rawBefore
-          );
+          restoreNodeState(node, before, rawBefore);
           throw err;
         }
         result.applied++;
@@ -431,11 +501,23 @@
   var PreviewController = class {
     constructor() {
       this.entries = [];
+      this.revision = 0;
     }
     get active() {
       return this.entries.length > 0;
     }
-    cancel() {
+    bumpRevision(revision) {
+      if (typeof revision === "number") {
+        if (revision < this.revision) return this.revision;
+        this.revision = revision;
+        return this.revision;
+      }
+      this.revision += 1;
+      return this.revision;
+    }
+    cancel(revision) {
+      if (typeof revision === "number" && revision < this.revision) return;
+      const token = this.bumpRevision(revision);
       for (const item of this.entries) {
         try {
           if (!item.node.removed && fingerprint(readEffects(item.node)) === item.lastFingerprint)
@@ -443,13 +525,15 @@
         } catch {
         }
       }
-      this.entries = [];
+      if (token === this.revision) this.entries = [];
     }
-    preview(params) {
+    preview(params, revision) {
+      if (typeof revision === "number" && revision < this.revision) return;
+      const token = this.bumpRevision(revision);
       const targets = selectedTargets();
       const ids = targets.map((n2) => n2.id).sort().join("|");
       if (this.entries.length && this.entries[0].selectionKey !== ids)
-        this.cancel();
+        this.cancel(token);
       if (!this.entries.length) {
         for (const node of targets) {
           const original = readEffects(node);
@@ -466,7 +550,7 @@
       }
       for (const e of this.entries) {
         try {
-          if (e.node.removed || fingerprint(readEffects(e.node)) !== e.lastFingerprint)
+          if (e.node.removed || fingerprint(readEffects(e.node)) !== e.lastFingerprint || token !== this.revision)
             continue;
           const old = readNodeAttachment(e.node).attachment;
           const baseline = old ? old.baselineEffects : e.original;
@@ -514,10 +598,7 @@
         });
         this.controls.push(control);
         this.currentId = node.id;
-        control.on(
-          "change",
-          (value) => onChange(value)
-        );
+        control.on("change", (value) => onChange(value));
       } catch {
         this.clear();
       }
@@ -529,6 +610,8 @@
   var CommandHandler = class {
     constructor() {
       this.preview = new PreviewController();
+      this.previewRevision = 0;
+      this.activeBatchOperation = 0;
       this.params = DEFAULTS;
       this.custom = [];
       this.lightControl = new LightCanvasControl();
@@ -574,40 +657,55 @@
     }
     onSelectionChange() {
       this.lightControl.clear();
-      this.preview.cancel();
+      this.activeBatchOperation = 0;
+      this.previewRevision += 1;
+      this.preview.cancel(this.previewRevision);
       this.params = DEFAULTS;
       this.refresh();
     }
     async handle(msg) {
       try {
+        if (this.activeBatchOperation && (msg.type === "preview" || msg.type === "cancel-preview" || msg.type === "reset")) {
+          return;
+        }
         if (msg.type === "preview") {
           this.params = normalizeParams(msg.params);
-          this.preview.preview(this.params);
+          this.previewRevision += 1;
+          this.preview.preview(this.params, this.previewRevision);
           this.refresh();
           return;
         }
         if (msg.type === "cancel-preview" || msg.type === "reset") {
-          this.preview.cancel();
+          this.previewRevision += 1;
+          this.preview.cancel(this.previewRevision);
           this.params = DEFAULTS;
           this.refresh();
           return;
         }
         if (msg.type === "apply" || msg.type === "remove") {
-          this.preview.cancel();
+          this.previewRevision += 1;
+          this.activeBatchOperation = this.previewRevision;
+          this.preview.cancel(this.previewRevision);
           if (msg.type === "apply") this.params = normalizeParams(msg.params);
-          const result = await runBatch(
-            msg.type,
-            this.params,
-            Boolean(msg.force)
-          );
-          send({ type: "result", action: msg.type, result });
-          if (result.conflicted && !msg.force)
-            send({
-              type: "conflict",
-              action: msg.type,
-              count: result.conflicted
-            });
-          this.refresh();
+          const token = this.activeBatchOperation;
+          try {
+            const result = await runBatch(
+              msg.type,
+              this.params,
+              Boolean(msg.force)
+            );
+            if (token !== this.activeBatchOperation) return;
+            send({ type: "result", action: msg.type, result });
+            if (result.conflicted && !msg.force)
+              send({
+                type: "conflict",
+                action: msg.type,
+                count: result.conflicted
+              });
+            this.refresh();
+          } finally {
+            if (token === this.activeBatchOperation) this.activeBatchOperation = 0;
+          }
           return;
         }
         if (msg.type === "export-css") {
@@ -648,7 +746,9 @@
       }
     }
     cancel() {
-      this.preview.cancel();
+      this.activeBatchOperation = 0;
+      this.previewRevision += 1;
+      this.preview.cancel(this.previewRevision);
       this.lightControl.clear();
     }
   };
@@ -665,12 +765,15 @@
 
   // src/main.ts
   var handler = new CommandHandler();
-  figma.showUI(__html__, { width: 360, height: 640, themeColors: true });
+  void figma.showUI(__html__, { width: 360, height: 640, themeColors: true });
   figma.on("selectionchange", () => handler.onSelectionChange());
   figma.on("close", () => handler.cancel());
   var queue = Promise.resolve();
   figma.ui.onmessage = (msg) => {
-    queue = queue.then(() => handler.handle(msg)).catch((error) => figma.notify(String(error), { error: true }));
+    queue = queue.then(() => handler.handle(msg)).catch((error) => {
+      void figma.notify(String(error), { error: true });
+      return void 0;
+    });
   };
   void handler.initialize();
 })();

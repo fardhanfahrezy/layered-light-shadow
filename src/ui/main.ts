@@ -4,6 +4,10 @@ import { normalizeParams } from "../shared/validation";
 import { DEFAULTS } from "../domain/defaults";
 import { state } from "./state/store";
 import { renderPreview } from "./components/preview";
+import {
+  invalidatePendingPreview,
+  type PreviewTimerState,
+} from "./preview-timer";
 const byId = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
 const send = (msg: UIToPlugin) =>
@@ -73,14 +77,15 @@ function readControls() {
   controlsFromState();
   schedulePreview();
 }
-let debounce: number | undefined;
+const previewState: PreviewTimerState = { request: 0, timeout: undefined };
 function schedulePreview() {
   if (!byId<HTMLInputElement>("live").checked) return;
-  clearTimeout(debounce);
-  debounce = window.setTimeout(
-    () => send({ type: "preview", params: state.params }),
-    130,
-  );
+  const token = ++previewState.request;
+  if (previewState.timeout !== undefined) clearTimeout(previewState.timeout);
+  previewState.timeout = window.setTimeout(() => {
+    if (token !== previewState.request) return;
+    send({ type: "preview", params: state.params });
+  }, 130);
 }
 function setStatus() {
   const s = state.selection;
@@ -113,7 +118,10 @@ byId("curve").addEventListener("change", readControls);
 byId("color").addEventListener("input", readControls);
 byId("live").addEventListener("change", () => {
   if (byId<HTMLInputElement>("live").checked) schedulePreview();
-  else send({ type: "cancel-preview" });
+  else {
+    invalidatePendingPreview(previewState);
+    send({ type: "cancel-preview" });
+  }
 });
 byId("preset").addEventListener("change", () => {
   const id = byId<HTMLSelectElement>("preset").value;
@@ -126,18 +134,23 @@ byId("preset").addEventListener("change", () => {
   updatePresetList();
 });
 byId("reset").addEventListener("click", () => {
+  invalidatePendingPreview(previewState);
   state.params = normalizeParams(DEFAULTS);
   state.currentPreset = "";
   controlsFromState();
   updatePresetList();
   schedulePreview();
 });
-byId("apply").addEventListener("click", () =>
-  send({ type: "apply", params: state.params }),
-);
-byId("remove").addEventListener("click", () => send({ type: "remove" }));
+byId("apply").addEventListener("click", () => {
+  invalidatePendingPreview(previewState);
+  send({ type: "apply", params: state.params });
+});
+byId("remove").addEventListener("click", () => {
+  invalidatePendingPreview(previewState);
+  send({ type: "remove" });
+});
 byId("cancel").addEventListener("click", () => {
-  clearTimeout(debounce);
+  invalidatePendingPreview(previewState);
   send({ type: "cancel-preview" });
 });
 byId("export").addEventListener("click", () =>
@@ -188,6 +201,7 @@ window.addEventListener(
       state.presets = msg.presets;
       state.previewing = msg.previewing;
       if (wasSelection !== newSelection) {
+        invalidatePendingPreview(previewState);
         state.params = normalizeParams(msg.params);
         state.currentPreset = "";
         controlsFromState();

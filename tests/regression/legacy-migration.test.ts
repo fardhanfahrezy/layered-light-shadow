@@ -29,4 +29,25 @@ describe("v1 migration", () => {
   });
   it("rejects invalid payloads", () =>
     expect(parseAttachment("{broken", [], geometry).status).toBe("corrupt"));
+  it("rejects mismatched or malformed v2 metadata", () => {
+    const mismatch = JSON.stringify({
+      version: 2,
+      params: DEFAULTS,
+      baselineEffects: [{ type: "DROP_SHADOW", radius: 4, visible: true }],
+      generatedEffects: [{ type: "DROP_SHADOW", radius: 8, visible: true }],
+      appliedFingerprint: "wrong",
+      updatedAt: Date.now(),
+    });
+    expect(parseAttachment(mismatch, [], geometry).status).toBe("corrupt");
+
+    const malformed = JSON.stringify({
+      version: 2,
+      params: DEFAULTS,
+      baselineEffects: ["bad"],
+      generatedEffects: [],
+      appliedFingerprint: "",
+      updatedAt: Date.now(),
+    });
+    expect(parseAttachment(malformed, [], geometry).status).toBe("corrupt");
+  });
 });

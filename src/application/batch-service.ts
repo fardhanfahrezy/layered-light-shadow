@@ -23,6 +23,17 @@ import {
 } from "../infrastructure/plugin-storage";
 import { PluginError, errorMessage } from "../shared/errors";
 export type BatchAction = "apply" | "remove";
+function restoreNodeState(
+  node: SceneNode,
+  originalEffects: SerializedEffect[],
+  originalState: string,
+): void {
+  if ("effects" in node) node.effects = originalEffects as unknown as Effect[];
+  node.setPluginData(
+    "36604c2e-ece2-495a-a2e0-9b0706ab9301:state",
+    originalState,
+  );
+}
 export async function runBatch(
   action: BatchAction,
   params: ShadowParams,
@@ -61,8 +72,11 @@ export async function runBatch(
           result.skipped++;
           continue;
         }
-        // Explicit force restores baseline and therefore discards intervening manual edits.
-        assignEffects(node, old.baselineEffects);
+        if (state === "conflict" && force) {
+          assignEffects(node, old.baselineEffects);
+        } else {
+          assignEffects(node, old.baselineEffects);
+        }
         clearNodeAttachment(node);
         node.setRelaunchData({});
         result.applied++;
@@ -83,7 +97,6 @@ export async function runBatch(
         appliedFingerprint: fingerprint(effects),
         updatedAt: Date.now(),
       };
-      // Preflight serialization before mutating the Figma document.
       if (JSON.stringify(meta).length > 90000)
         throw new PluginError("STORAGE", "Attachment exceeds safe size limit.");
       assignEffects(node, effects);
@@ -93,11 +106,7 @@ export async function runBatch(
           "36604c2e-ece2-495a-a2e0-9b0706ab9301": "Layered Light Shadow",
         });
       } catch (err) {
-        assignEffects(node, before);
-        node.setPluginData(
-          "36604c2e-ece2-495a-a2e0-9b0706ab9301:state",
-          rawBefore,
-        );
+        restoreNodeState(node, before, rawBefore);
         throw err;
       }
       result.applied++;
@@ -106,7 +115,6 @@ export async function runBatch(
         result.conflicted++;
       else result.failed++;
       result.errors.push(errorMessage(err));
-      // Best-effort restore only if operation was partially written. No blind overwrite on conflict.
     }
   }
   result.skipped += result.total - targets.length;

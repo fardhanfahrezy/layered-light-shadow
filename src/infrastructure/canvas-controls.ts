@@ -1,8 +1,27 @@
 import type { ShadowParams } from "../domain/types";
+
+type PointValue = { x: number; y: number };
+
+type CanvasControlLike = {
+  remove(): void;
+  removed: boolean;
+  on(event: "change", callback: (value: PointValue) => void): void;
+};
+
+type CanvasControlHost = SceneNode & {
+  createCanvasControl?: (options: {
+    key: string;
+    type: "POINT";
+    name: string;
+    unit: "%";
+    value: PointValue;
+  }) => CanvasControlLike;
+};
+
 // Optional Figma canvas control. The UI sliders remain usable in clients without this API.
 export class LightCanvasControl {
   private currentId: string | null = null;
-  private controls: Array<{ remove(): void; removed: boolean }> = [];
+  private controls: CanvasControlLike[] = [];
   clear() {
     for (const control of this.controls) {
       try {
@@ -15,13 +34,11 @@ export class LightCanvasControl {
   attach(
     node: SceneNode,
     params: ShadowParams,
-    onChange: (light: { x: number; y: number }) => void,
+    onChange: (light: PointValue) => void,
   ) {
     if (this.currentId === node.id && this.controls.length) return;
     this.clear();
-    const maker = (
-      node as SceneNode & { createCanvasControl?: (options: unknown) => any }
-    ).createCanvasControl;
+    const maker = (node as CanvasControlHost).createCanvasControl;
     if (typeof maker !== "function") return;
     try {
       const control = maker.call(node, {
@@ -33,9 +50,7 @@ export class LightCanvasControl {
       });
       this.controls.push(control);
       this.currentId = node.id;
-      control.on("change", (value: { x: number; y: number }) =>
-        onChange(value),
-      );
+      control.on("change", (value: PointValue) => onChange(value));
     } catch {
       this.clear();
     }

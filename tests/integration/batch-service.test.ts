@@ -64,4 +64,23 @@ describe("batch safety", () => {
     expect(result.conflicted).toBe(1);
     expect(result.applied).toBe(1);
   });
+
+  it("rolls back node state when metadata persistence fails", async () => {
+    const n = node("persist-fail");
+    environment([n]);
+    let shouldFail = true;
+    const originalSet = n.setPluginData.bind(n);
+    n.setPluginData = (key: string, value: string) => {
+      if (key === ATTACH_KEY && shouldFail) {
+        shouldFail = false;
+        throw new Error("persist failed");
+      }
+      originalSet(key, value);
+    };
+
+    const result = await runBatch("apply", DEFAULTS);
+    expect(result.failed).toBe(1);
+    expect(n.effects).toEqual([{ type: "LAYER_BLUR", radius: 4, visible: true }]);
+    expect(n.getPluginData(ATTACH_KEY)).toBe("");
+  });
 });

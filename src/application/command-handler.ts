@@ -20,6 +20,8 @@ import { readEffects } from "../infrastructure/figma-effects";
 const send = (message: PluginToUI) => figma.ui.postMessage(message);
 export class CommandHandler {
   private preview = new PreviewController();
+  private previewRevision = 0;
+  private activeBatchOperation = 0;
   private params: ShadowParams = DEFAULTS;
   private custom: Preset[] = [];
   private lightControl = new LightCanvasControl();
@@ -69,40 +71,55 @@ export class CommandHandler {
   }
   onSelectionChange() {
     this.lightControl.clear();
-    this.preview.cancel();
+    this.activeBatchOperation = 0;
+    this.previewRevision += 1;
+    this.preview.cancel(this.previewRevision);
     this.params = DEFAULTS;
     this.refresh();
   }
   async handle(msg: UIToPlugin) {
     try {
+      if (this.activeBatchOperation && (msg.type === "preview" || msg.type === "cancel-preview" || msg.type === "reset")) {
+        return;
+      }
       if (msg.type === "preview") {
         this.params = normalizeParams(msg.params);
-        this.preview.preview(this.params);
+        this.previewRevision += 1;
+        this.preview.preview(this.params, this.previewRevision);
         this.refresh();
         return;
       }
       if (msg.type === "cancel-preview" || msg.type === "reset") {
-        this.preview.cancel();
+        this.previewRevision += 1;
+        this.preview.cancel(this.previewRevision);
         this.params = DEFAULTS;
         this.refresh();
         return;
       }
       if (msg.type === "apply" || msg.type === "remove") {
-        this.preview.cancel();
+        this.previewRevision += 1;
+        this.activeBatchOperation = this.previewRevision;
+        this.preview.cancel(this.previewRevision);
         if (msg.type === "apply") this.params = normalizeParams(msg.params);
-        const result = await runBatch(
-          msg.type,
-          this.params,
-          Boolean(msg.force),
-        );
-        send({ type: "result", action: msg.type, result });
-        if (result.conflicted && !msg.force)
-          send({
-            type: "conflict",
-            action: msg.type,
-            count: result.conflicted,
-          });
-        this.refresh();
+        const token = this.activeBatchOperation;
+        try {
+          const result = await runBatch(
+            msg.type,
+            this.params,
+            Boolean(msg.force),
+          );
+          if (token !== this.activeBatchOperation) return;
+          send({ type: "result", action: msg.type, result });
+          if (result.conflicted && !msg.force)
+            send({
+              type: "conflict",
+              action: msg.type,
+              count: result.conflicted,
+            });
+          this.refresh();
+        } finally {
+          if (token === this.activeBatchOperation) this.activeBatchOperation = 0;
+        }
         return;
       }
       if (msg.type === "export-css") {
@@ -145,7 +162,9 @@ export class CommandHandler {
     }
   }
   cancel() {
-    this.preview.cancel();
+    this.activeBatchOperation = 0;
+    this.previewRevision += 1;
+    this.preview.cancel(this.previewRevision);
     this.lightControl.clear();
   }
 }

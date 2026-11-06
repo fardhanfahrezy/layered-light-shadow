@@ -20,10 +20,22 @@ interface PreviewEntry {
 }
 export class PreviewController {
   private entries: PreviewEntry[] = [];
+  private revision = 0;
   get active() {
     return this.entries.length > 0;
   }
-  cancel(): void {
+  private bumpRevision(revision?: number): number {
+    if (typeof revision === "number") {
+      if (revision < this.revision) return this.revision;
+      this.revision = revision;
+      return this.revision;
+    }
+    this.revision += 1;
+    return this.revision;
+  }
+  cancel(revision?: number): void {
+    if (typeof revision === "number" && revision < this.revision) return;
+    const token = this.bumpRevision(revision);
     for (const item of this.entries) {
       try {
         if (
@@ -33,16 +45,18 @@ export class PreviewController {
           assignEffects(item.node, item.original);
       } catch {}
     }
-    this.entries = [];
+    if (token === this.revision) this.entries = [];
   }
-  preview(params: ShadowParams): void {
+  preview(params: ShadowParams, revision?: number): void {
+    if (typeof revision === "number" && revision < this.revision) return;
+    const token = this.bumpRevision(revision);
     const targets = selectedTargets();
     const ids = targets
       .map((n) => n.id)
       .sort()
       .join("|");
     if (this.entries.length && this.entries[0].selectionKey !== ids)
-      this.cancel();
+      this.cancel(token);
     if (!this.entries.length) {
       for (const node of targets) {
         const original = readEffects(node);
@@ -64,7 +78,8 @@ export class PreviewController {
       try {
         if (
           e.node.removed ||
-          fingerprint(readEffects(e.node)) !== e.lastFingerprint
+          fingerprint(readEffects(e.node)) !== e.lastFingerprint ||
+          token !== this.revision
         )
           continue;
         const old = readNodeAttachment(e.node).attachment;
